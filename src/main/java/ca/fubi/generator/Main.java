@@ -1,20 +1,33 @@
 package ca.fubi.generator;
 
-import com.squareup.javapoet.MethodSpec;
-import com.squareup.javapoet.TypeSpec;
-import com.squareup.javapoet.JavaFile;
-import com.squareup.javapoet.ClassName;
-import com.squareup.javapoet.FieldSpec;
-import com.squareup.javapoet.ParameterizedTypeName;
-import com.squareup.javapoet.TypeName;
-
-import javax.lang.model.element.Modifier;
-
 import java.io.IOException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import javax.lang.model.element.Modifier;
+
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.squareup.javapoet.AnnotationSpec;
+import com.squareup.javapoet.ClassName;
+import com.squareup.javapoet.FieldSpec;
+import com.squareup.javapoet.JavaFile;
+import com.squareup.javapoet.MethodSpec;
+import com.squareup.javapoet.ParameterizedTypeName;
+import com.squareup.javapoet.TypeName;
+import com.squareup.javapoet.TypeSpec;
+
+import jakarta.persistence.Id;
+import jakarta.persistence.Column;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.Table;
 
 class Entity {
     private String name;
@@ -30,9 +43,15 @@ class Entity {
     public String getName() {
         return name;
     }
-
-    public void addAttribute(String attributeName, TypeName attributeType) {
+    
+    public <T> Entity addAttribute(String attributeName, Class<T> attributeType) {
+        attributes.put(attributeName, ClassName.get(attributeType));
+        return this;
+    }
+    
+    public Entity addAttribute(String attributeName, TypeName attributeType) {
         attributes.put(attributeName, attributeType);
+        return this;
     }
 
     public void addMethod(MethodSpec methodSpec) {
@@ -51,44 +70,73 @@ class Entity {
 public class Main {
 
   public static void main(String[] args) {
-    Entity addressEntity = new Entity("Address");
-    addressEntity.addAttribute("street", ClassName.get(String.class));
-    addressEntity.addAttribute("city", ClassName.get(String.class));
-    addressEntity.addAttribute("state", ClassName.get(String.class));
-    addressEntity.addAttribute("zipCode", ClassName.get(String.class));
-    addressEntity.addAttribute("addressType", ClassName.get("", "AddressType"));
-
-    Entity addressTypeEntity = new Entity("AddressType");
-    addressTypeEntity.addAttribute("type", ClassName.get(String.class));
-
-    Entity studentEntity = new Entity("Student");
-    studentEntity.addAttribute("name", ClassName.get(String.class));
-    studentEntity.addAttribute("email", ClassName.get(String.class));
-    studentEntity.addAttribute("address", ClassName.get("", "Address"));
-    studentEntity.addAttribute("courses", ParameterizedTypeName.get(ClassName.get("java.util", "List"), ClassName.get("", "Course")));
-
-    Entity courseEntity = new Entity("Course");
-    courseEntity.addAttribute("title", ClassName.get(String.class));
-    courseEntity.addAttribute("description", ClassName.get(String.class));
-    courseEntity.addAttribute("students", ParameterizedTypeName.get(ClassName.get("java.util", "List"), ClassName.get("", "Student")));
-
-    generateEntity(studentEntity);
-    generateEntity(courseEntity);
-    generateEntity(addressEntity);
-    generateEntity(addressTypeEntity);
+	  Entity categoria = new Entity("Categoria");
+	  categoria.addAttribute("nome", String.class)
+	  		   .addAttribute("produtos", ParameterizedTypeName.get(ClassName.get("java.util","List"), ClassName.get("", "Produto")));
+	  			
+	  generateEntity(categoria);
+	  
+	  Entity produto = new Entity("Produto");
+	  produto.addAttribute("nome", String.class)
+	  		 .addAttribute("preco", Double.class)
+	  		 .addAttribute("categoria", ParameterizedTypeName.get(ClassName.get("java.util","List"), ClassName.get("", "Categoria")));
+	  
+	  generateEntity(produto);
+	  
+	  Entity pedido = new Entity("Pedido");
+	  pedido.addAttribute("status", String.class)
+	  		.addAttribute("itens", ParameterizedTypeName.get(ClassName.get("java.util","List"), ClassName.get("", "ItemPedido")));
+	  
+	  generateEntity(pedido);
+	  
+	  Entity itemPedido = new Entity("ItemPedido");
+	  itemPedido.addAttribute("quantidade", Integer.class)
+	  			.addAttribute("pedido", ClassName.get("", "Pedido"))
+	  			.addAttribute("pedido", ClassName.get("", "Produto"));
+	  
+	  generateEntity(itemPedido);
   }
 
   private static void generateEntity(Entity entity) {
     TypeSpec.Builder typeSpecBuilder = TypeSpec.classBuilder(entity.getName())
-      .addModifiers(Modifier.PUBLIC);
-
-    // Add fields
-    for (Map.Entry < String, TypeName > entry: entity.getAttributes().entrySet()) {
-      FieldSpec fieldSpec = FieldSpec.builder(entry.getValue(), entry.getKey(), Modifier.PRIVATE).build();
-      typeSpecBuilder.addField(fieldSpec);
+      .addModifiers(Modifier.PUBLIC)
+      .addAnnotation(jakarta.persistence.Entity.class)
+      .addAnnotation(AnnotationSpec.builder(Table.class)
+    		  .addMember("name", "\"tb_" + entity.getName().toLowerCase() + "\"")
+    		  .build());
+    
+    FieldSpec id = FieldSpec.builder(Long.class, "id", Modifier.PRIVATE)
+    	    .addAnnotation(Id.class)
+    	    .addAnnotation(AnnotationSpec.builder(GeneratedValue.class)
+    	            .addMember("strategy", "$T.IDENTITY", GenerationType.class)
+    	            .build())
+    	    .addAnnotation(AnnotationSpec.builder(Column.class)
+    	            .addMember("name", "$S", "id_" + entity.getName().toLowerCase())
+    	            .build())
+    	    .build();
+    
+    typeSpecBuilder.addField(id);
+    
+    for (Map.Entry<String, TypeName> entry : entity.getAttributes().entrySet()) {
+        FieldSpec.Builder fieldBuilder = FieldSpec.builder(entry.getValue(), entry.getKey(), Modifier.PRIVATE);
+        
+        if (entry.getValue() instanceof ParameterizedTypeName) {
+            fieldBuilder.addAnnotation(AnnotationSpec.builder(OneToMany.class)
+                        		.addMember("mappedBy", "$S", entity.getName().toLowerCase())
+                        		.build())
+                        .addAnnotation(AnnotationSpec.builder(JsonIgnore.class)
+                        		.build());
+        }
+        else {
+        	fieldBuilder.addAnnotation(AnnotationSpec.builder(Column.class)
+            		.addMember("name", "$S", entity.getName().toLowerCase() + "_" + entry.getKey())
+            		.build());
+        }
+        
+        FieldSpec fieldSpec = fieldBuilder.build();
+        typeSpecBuilder.addField(fieldSpec);
     }
 
-    // Constructor
     MethodSpec.Builder constructorBuilder = MethodSpec.constructorBuilder().addModifiers(Modifier.PUBLIC);
     for (Map.Entry < String, TypeName > entry: entity.getAttributes().entrySet()) {
       constructorBuilder.addParameter(entry.getValue(), entry.getKey());
@@ -96,12 +144,10 @@ public class Main {
     }
     typeSpecBuilder.addMethod(constructorBuilder.build());
 
-    // Getter and setter methods
     for (Map.Entry < String, TypeName > entry: entity.getAttributes().entrySet()) {
       String attributeName = entry.getKey();
       TypeName attributeType = entry.getValue();
 
-      // Getter method
       MethodSpec getterMethod = MethodSpec.methodBuilder("get" + capitalize(attributeName))
         .addModifiers(Modifier.PUBLIC)
         .returns(attributeType)
@@ -109,7 +155,6 @@ public class Main {
         .build();
       typeSpecBuilder.addMethod(getterMethod);
 
-      // Setter method
       MethodSpec setterMethod = MethodSpec.methodBuilder("set" + capitalize(attributeName))
         .addModifiers(Modifier.PUBLIC)
         .returns(void.class)
@@ -119,14 +164,16 @@ public class Main {
       typeSpecBuilder.addMethod(setterMethod);
     }
 
-    // Add methods
     for (MethodSpec methodSpec: entity.getMethods()) {
       typeSpecBuilder.addMethod(methodSpec);
     }
 
-    JavaFile javaFile = JavaFile.builder("com.example.generated", typeSpecBuilder.build()).build();
+    JavaFile javaFile = JavaFile.builder("ca.fubi.generator", typeSpecBuilder.build())
+    		  .build();
     try {
-      javaFile.writeTo(System.out);
+    	Path path = Paths.get("C:/Users/ITAPERUÇU/");
+    	javaFile.writeTo(path);
+    	
     } catch (IOException e) {
       e.printStackTrace();
     }
