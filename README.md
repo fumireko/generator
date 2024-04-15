@@ -94,8 +94,11 @@ For each class specified in the input JSON, the generator creates a Java class w
         ]
     }
 ]
+```
 
-# This will output these Java classes:
+This will output these classes:
+
+```java
 
 package ca.fubi.generator;
 
