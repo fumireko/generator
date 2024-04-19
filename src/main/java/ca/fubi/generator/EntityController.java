@@ -3,7 +3,6 @@ package ca.fubi.generator;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.regex.Matcher;
@@ -12,6 +11,7 @@ import java.util.regex.Pattern;
 import javax.lang.model.element.Modifier;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.repository.Repository;
 import org.springframework.http.ResponseEntity;
@@ -50,10 +50,19 @@ import jakarta.persistence.Table;
 @Controller
 public class EntityController {
 
-	//TODO missing imports, put packages and paths on application.properties
-	
-	private static final String OUTPUT_PATH = "C:/Users/ITAPERUÇU/";
+	private static String OUTPUT_PATH;
+    private static String OUTPUT_PACKAGE;
 
+    @Value("${app.output.path}")
+    public void setOutputPath(String outputPath) {
+        OUTPUT_PATH = outputPath;
+    }
+
+    @Value("${app.output.package}")
+    public void setOutputPackage(String outputPackage) {
+        OUTPUT_PACKAGE = outputPackage;
+    }
+    
 	@PostMapping("/all")
 	public ResponseEntity<?> generateAll(@RequestBody EntityDTO[] entities) {
 	    try {
@@ -63,7 +72,7 @@ public class EntityController {
 	            writeJavaFile(generateRepository(e));
 	            writeJavaFile(generateController(e));
 	        }
-	        return ResponseEntity.ok().body("Files generated successfully.");
+	        return ResponseEntity.ok().body("Files generated successfully to path " + OUTPUT_PATH );
 	    } catch (IOException e) {
 	        return ResponseEntity.status(500).body("Error occurred while generating files: \n" + e.toString());
 	    }
@@ -177,7 +186,7 @@ public class EntityController {
             typeSpecBuilder.addMethod(methodSpec);
         }
 
-        return JavaFile.builder("ca.fubi.generator", typeSpecBuilder.build()).build();
+        return JavaFile.builder(OUTPUT_PACKAGE, typeSpecBuilder.build()).build();
     }
     
     private static JavaFile generateController(Entity entity) {
@@ -189,13 +198,15 @@ public class EntityController {
                 .addAnnotation(AnnotationSpec.builder(RequestMapping.class)
                 		.addMember("value", "$S", "/api/" + entityLowercase)
                 		.build())
-                .addField(FieldSpec.builder(getTypeName(capitalize(entity.getName()) + "Repository"), entityLowercase + "Repo")
+                .addField(FieldSpec.builder(ClassName.get(OUTPUT_PACKAGE + 	".repository", capitalize(entity.getName()) + "Repository"), entityLowercase + "Repo")
                 		.addAnnotation(Autowired.class)
                 		.build());
 
         MethodSpec getResource = MethodSpec.methodBuilder("get" + entity.getName())
                 .addModifiers(Modifier.PUBLIC)
-                .returns(getTypeName("ResponseEntity<" + entity.getName() + ">"))
+                .returns(ParameterizedTypeName.get(
+                		ClassName.get("org.springframework.http", "ResponseEntity"),
+                		ClassName.get(OUTPUT_PACKAGE, entity.getName())))
                 .addParameter(ParameterSpec.builder(Long.class, "id")
                 		.addAnnotation(AnnotationSpec.builder(PathVariable.class)
                 				.addMember("value", "$S", "id")
@@ -270,7 +281,7 @@ public class EntityController {
                 .addMethod(deleteResource)
                 .build();
 
-        return JavaFile.builder("ca.fubi.generator.controller", typeSpec).build();
+        return JavaFile.builder(OUTPUT_PACKAGE + ".controller", typeSpec).build();
     }
     
     private static JavaFile generateRepository(Entity entity) {
@@ -279,10 +290,10 @@ public class EntityController {
         TypeSpec repositoryInterface = TypeSpec.interfaceBuilder(entityName + "Repository")
         		.addSuperinterface(ParameterizedTypeName.get(ClassName.get(JpaRepository.class), getTypeName(entityName), TypeName.get(Long.class)))
                 .addModifiers(Modifier.PUBLIC)
-                .addAnnotation(Repository.class)
+                .addAnnotation(ClassName.get("org.springframework.stereotype", "Repository"))
                 .addMethod(MethodSpec.methodBuilder("findById")
                         .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
-                        .returns(ParameterizedTypeName.get(ClassName.get(Optional.class), getTypeName(entityName)))
+                        .returns(ParameterizedTypeName.get(ClassName.get(Optional.class), ClassName.get(OUTPUT_PACKAGE, entity.getName())))
                         .addParameter(Long.class, "id")
                         .build())
                 .addMethod(MethodSpec.methodBuilder("findAll")
@@ -301,7 +312,7 @@ public class EntityController {
                         .build())
                 .build();
 
-        return JavaFile.builder("ca.fubi.generator.repository", repositoryInterface).build();
+        return JavaFile.builder(OUTPUT_PACKAGE + ".repository", repositoryInterface).build();
     }
     
 	private void writeJavaFile(JavaFile javaFile) throws IOException {
