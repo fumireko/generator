@@ -284,13 +284,14 @@ public class EntityController {
 	            );
 	
         		updateResourceBuilder
-	        		.beginControlFlow("for ($T " + trimmed + " : saved$T.get" + capitalize(name) + "())", getTypeName(capitalize(trimmed)), mainType)
-	    			.addStatement(name + ".set$T(saved$T)", mainType, mainType)
+	        		.beginControlFlow("for ($T " + trimmed + " : update.get" + capitalize(name) + "())", getTypeName(capitalize(trimmed)))
+	    			.addStatement(trimmed + ".set$T(update)", mainType)
 	    			.addStatement(trimmed + "Repo.save(" + trimmed + ")")
 	    			.endControlFlow();
         		
         		createResourceBuilder
-	    			.beginControlFlow("for ($T " + trimmed + " : saved$T.get" + capitalize(name) + "())", getTypeName(capitalize(trimmed)), mainType)
+        		.beginControlFlow("for ($T " + trimmed + " : saved$T.get" + capitalize(name) + "())", 
+        				ClassName.get(OUTPUT_PACKAGE, capitalize(trimmed)), mainType)
 	    			.addStatement(trimmed + ".set$T(saved$T)", mainType, mainType)
 	    			.addStatement(trimmed + "Repo.save(" + trimmed + ")")
 	    			.endControlFlow();
