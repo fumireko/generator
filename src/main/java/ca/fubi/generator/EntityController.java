@@ -37,6 +37,7 @@ import com.squareup.javapoet.ParameterizedTypeName;
 import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
 import com.squareup.javapoet.TypeVariableName;
+import com.squareup.javapoet.WildcardTypeName;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.GeneratedValue;
@@ -191,6 +192,7 @@ public class EntityController {
     
     private static JavaFile generateController(Entity entity) {
     	String entityLowercase = entity.getName().toLowerCase();
+    	TypeName mainType = getTypeName(entity.getName());
     	
         TypeSpec.Builder typeSpecBuilder = TypeSpec.classBuilder(entity.getName() + "Controller")
                 .addModifiers(Modifier.PUBLIC)
@@ -228,37 +230,33 @@ public class EntityController {
                         .build())
                 .build();
 
-        MethodSpec createResource = MethodSpec.methodBuilder("create" + entity.getName())
+        MethodSpec.Builder createResourceBuilder = MethodSpec.methodBuilder("create" + entity.getName())
                 .addModifiers(Modifier.PUBLIC)
-                .returns(getTypeName("ResponseEntity<" + entity.getName() + ">"))
-                .addParameter(ParameterSpec.builder(getTypeName(entity.getName()), "body")
-                		.addAnnotation(RequestBody.class).build())
-                .addStatement("return ResponseEntity.ok(" + entityLowercase + "Repo.save(body))")
                 .addAnnotation(AnnotationSpec.builder(PostMapping.class)
                 		.addMember("value", "$S", "/")
                         .build())
-                .build();
-
-        MethodSpec updateResource = MethodSpec.methodBuilder("update" + entity.getName())
-                .addModifiers(Modifier.PUBLIC)
-                .returns(getTypeName("ResponseEntity<" + entity.getName() + ">"))
+                .returns(ParameterizedTypeName.get(ClassName.get(ResponseEntity.class), WildcardTypeName.subtypeOf(Object.class)))
                 .addParameter(ParameterSpec.builder(getTypeName(entity.getName()), "body")
-                		.addAnnotation(RequestBody.class).build())
+                		.addAnnotation(RequestBody.class)
+                		.build())
+                .beginControlFlow("try")
+                .addStatement("$T saved$T = " + entityLowercase + "Repo.save(body)", mainType, mainType);
+        
+        MethodSpec.Builder updateResourceBuilder = MethodSpec.methodBuilder("update" + entity.getName())
+                .addModifiers(Modifier.PUBLIC)
+                .addAnnotation(AnnotationSpec.builder(PutMapping.class)
+                		.addMember("value", "$S", "/{id}")
+                        .build())
+                .returns(ParameterizedTypeName.get(ClassName.get(ResponseEntity.class), getTypeName(entity.getName())))
+                .addParameter(ParameterSpec.builder(getTypeName(entity.getName()), "update")
+                		.addAnnotation(RequestBody.class)
+                		.build())
                 .addParameter(ParameterSpec.builder(Long.class, "id")
                         .addAnnotation(AnnotationSpec.builder(PathVariable.class)
                         		.addMember("value", "$S", "id")
                                 .build())
                         .build())
-                .addCode(CodeBlock.builder()
-                        .beginControlFlow("return " + entityLowercase + "Repo" + ".findById(id).map("+ entityLowercase +" -> ")
-                        .addStatement("$T.copyProperties(body, " + entityLowercase + ")", BeanUtils.class)
-                        .addStatement("return ResponseEntity.ok(" + entityLowercase + "Repo.save("+ entityLowercase + "))")
-                        .endControlFlow(").orElse(ResponseEntity.notFound().build())")
-                        .build())
-                .addAnnotation(AnnotationSpec.builder(PutMapping.class)
-                		.addMember("value", "$S", "/{id}")
-                        .build())
-                .build();
+                .beginControlFlow("return " + entityLowercase + "Repo.findById(id).map(" + entityLowercase + " -> ");
 
         MethodSpec deleteResource = MethodSpec.methodBuilder("delete" + entity.getName())
                 .addModifiers(Modifier.PUBLIC)
@@ -273,6 +271,52 @@ public class EntityController {
                 		.addMember("value", "$S", "/{id}")
                         .build())
                 .build();
+        
+        entity.getAttributes().forEach((name, type) -> {
+        	String trimmed = name.substring(0, name.length() - 1);
+        	
+        	if(type.toString().contains("<")) {
+        		typeSpecBuilder.addField(
+	                FieldSpec.builder(
+	                    ClassName.get(OUTPUT_PACKAGE + ".repository", capitalize(trimmed) + "Repository"), trimmed + "Repo")
+	                    .addAnnotation(Autowired.class)
+                    .build()
+	            );
+	
+        		updateResourceBuilder
+	        		.beginControlFlow("for ($T " + trimmed + " : saved$T.get" + capitalize(name) + "())", getTypeName(capitalize(trimmed)), mainType)
+	    			.addStatement(name + ".set$T(saved$T)", mainType, mainType)
+	    			.addStatement(trimmed + "Repo.save(" + trimmed + ")")
+	    			.endControlFlow();
+        		
+        		createResourceBuilder
+	    			.beginControlFlow("for ($T " + trimmed + " : saved$T.get" + capitalize(name) + "())", getTypeName(capitalize(trimmed)), mainType)
+	    			.addStatement(trimmed + ".set$T(saved$T)", mainType, mainType)
+	    			.addStatement(trimmed + "Repo.save(" + trimmed + ")")
+	    			.endControlFlow();
+        	}
+        	if(!type.toString().contains(".")){
+        		updateResourceBuilder
+    				.addStatement(entityLowercase + ".set$T(update.get$T())", type, type);
+        	}
+        	else {
+        		updateResourceBuilder
+					.addStatement(entityLowercase + ".set" + capitalize(name) + "(update.get" + capitalize(name) + "())");
+        	}
+        });
+        
+        createResourceBuilder
+        	.addStatement("return ResponseEntity.ok(saved$T)", mainType)
+	        .nextControlFlow("catch ($T e)", Exception.class)
+	        .addStatement("return ResponseEntity.internalServerError().body(e.toString())")
+	        .endControlFlow();
+        
+        updateResourceBuilder
+        	.addStatement("return ResponseEntity.ok(" + entityLowercase + "Repo.save(" + entityLowercase + "))")
+        	.endControlFlow(").orElse(ResponseEntity.notFound().build())");
+        
+        MethodSpec createResource = createResourceBuilder.build();
+        MethodSpec updateResource = updateResourceBuilder.build();
 
         TypeSpec typeSpec = typeSpecBuilder.addMethod(getResource)
         		.addMethod(getAllResource)
