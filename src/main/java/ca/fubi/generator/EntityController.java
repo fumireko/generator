@@ -3,6 +3,7 @@ package ca.fubi.generator;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.Map;
 import java.util.Optional;
 import java.util.regex.Matcher;
@@ -26,6 +27,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.squareup.javapoet.AnnotationSpec;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.CodeBlock;
@@ -118,6 +121,10 @@ public class EntityController {
 
         FieldSpec id = FieldSpec.builder(Long.class, "id", Modifier.PRIVATE)
             .addAnnotation(Id.class)
+            .addAnnotation(AnnotationSpec.builder(JsonProperty.class)
+        		.addMember("value", "$S", ""
+        				+ "id")
+        		.build())
             .addAnnotation(AnnotationSpec.builder(GeneratedValue.class)
                 .addMember("strategy", "$T.IDENTITY", GenerationType.class)
                 .build())
@@ -135,7 +142,8 @@ public class EntityController {
                 fieldBuilder.addAnnotation(AnnotationSpec.builder(OneToMany.class)
                         .addMember("mappedBy", "$S", entityLowercase)
                         .build())
-                    .addAnnotation(AnnotationSpec.builder(JsonIgnore.class)
+                    .addAnnotation(AnnotationSpec.builder(JsonIgnoreProperties.class)
+                    	.addMember("value", "$S", entityLowercase)
                         .build());
             }
             if (entry.getValue().toString().contains(".")){
@@ -157,10 +165,15 @@ public class EntityController {
         typeSpecBuilder.addMethod(MethodSpec.constructorBuilder().addModifiers(Modifier.PUBLIC).build());
 
         MethodSpec.Builder constructorBuilder = MethodSpec.constructorBuilder().addModifiers(Modifier.PUBLIC);
-        for (Map.Entry < String, TypeName > entry: entity.getAttributes().entrySet()) {
+        for (Map.Entry<String, TypeName> entry : entity.getAttributes().entrySet()) {
             constructorBuilder.addParameter(entry.getValue(), entry.getKey());
-            constructorBuilder.addStatement("this.$N = $N", entry.getKey(), entry.getKey());
+
+            if (entry.getValue().toString().contains("<"))
+                constructorBuilder.addStatement("this.$N = new $T<>()", entry.getKey(), ClassName.get(ArrayList.class));
+            else
+                constructorBuilder.addStatement("this.$N = $N", entry.getKey(), entry.getKey());
         }
+
         typeSpecBuilder.addMethod(constructorBuilder.build());
 
         for (Map.Entry < String, TypeName > entry: entity.getAttributes().entrySet()) {
