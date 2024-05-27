@@ -1,0 +1,59 @@
+<div class="container bg-light">
+  <div class="row">
+    <div class="col-6">
+      <ng-monaco-editor
+        style="height: 100vh"
+        [options]="options"
+        [(ngModel)]="model">
+      </ng-monaco-editor>
+    </div>
+  
+    <div class="col-6 my-auto">
+
+      <div *ngIf="response" class="alert alert-danger" role="alert">
+        {{ response }}
+      </div>      
+
+      <form class="px-2 pt-3" #entityForm="ngForm">
+        <label class="mb-3">Entity Name:</label>
+        <div class="mb-3">
+          <input class="form-control" id="entityName" type="text" [(ngModel)]="entity.name" name="entityName" placeholder="Entity" required>  
+        </div>
+
+        <label>Attributes:</label>
+        <div class="mb-3">
+          <ul style="list-style-type: none; padding: 0;">
+            <li *ngFor="let attribute of entity.attributes; let i = index" style="margin-bottom: 10px;">
+              <div class="input-group">
+                <input class="form-control" type="text" [(ngModel)]="attribute.name" name="attributeName{{i}}" placeholder="Name" required pattern="[a-zA-Z][a-zA-Z0-9]*" readonly>
+                <input class="form-control" type="text" [(ngModel)]="attribute.type" name="attributeType{{i}}" placeholder="Type" required readonly>
+                <button class="btn btn-danger" type="button" (click)="removeAttribute(i)">Remove</button>  
+              </div>
+            </li>
+          </ul>
+        </div>
+
+        <div class="mb-3">
+          <div class="input-group">
+            <input class="form-control" type="text" [(ngModel)]="newAttribute.name" name="newAttributeName" placeholder="Name" required pattern="[a-zA-Z][a-zA-Z0-9]*">
+            <input class="form-control" type="text" [(ngModel)]="newAttribute.type" name="newAttributeType" placeholder="Type" required>
+            <button class="btn btn-success" type="button" (click)="addAttribute()">Add Attribute</button>
+          </div>
+        </div>
+        <div class="text-center btn-group my-3">
+            <button class="btn btn-secondary p-2" type="button" (click)="generateEntity()">Generate Entity</button>
+            <button *ngIf="model.length >= 16" class="btn btn-primary" type="button" (click)="sendRequest('all')">Send request</button>
+            <button *ngIf="model.length >= 16" type="button" class="btn btn-primary dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false">
+              <span class="visually-hidden">Toggle Dropdown</span>
+            </button>
+            <ul *ngIf="model.length >= 16" class="dropdown-menu">
+              <li><button class="dropdown-item" type="button" (click)="sendRequest('all')">Everything</button></li>
+              <li><button class="dropdown-item" type="button" (click)="sendRequest('entities')">Entities only</button></li>
+              <li><button class="dropdown-item" type="button" (click)="sendRequest('repositories')">Repositories only</button></li>
+              <li><button class="dropdown-item" type="button" (click)="sendRequest('controllers')">Controllers only</button></li>
+            </ul>
+        </div>
+      </form>    
+    </div>
+  </div>
+</div>
