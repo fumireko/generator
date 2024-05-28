@@ -17,6 +17,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.repository.Repository;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -52,6 +53,7 @@ import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 
 @Controller
+@CrossOrigin(origins = "*") 
 public class EntityController {
 
 	private static String OUTPUT_PATH;
@@ -67,48 +69,49 @@ public class EntityController {
         OUTPUT_PACKAGE = outputPackage;
     }
     
-	@PostMapping("/all")
-	public ResponseEntity<?> generateAll(@RequestBody EntityDTO[] entities) {
-	    try {
-	        for (EntityDTO entity : entities) {
-	            Entity e = convertToEntity(entity);
-	            writeJavaFile(generateEntity(e));
-	            writeJavaFile(generateRepository(e));
-	            writeJavaFile(generateController(e));
-	        }
-	        return ResponseEntity.ok().body("Files generated successfully to path " + OUTPUT_PATH );
-	    } catch (IOException e) {
-	        return ResponseEntity.status(500).body("Error occurred while generating files: \n" + e.toString());
-	    }
-	}
+
+    @PostMapping("/all")
+    public ResponseEntity<EntityResponseBody> generateAll(@RequestBody EntityDTO[] entities) {
+        try {
+            for (EntityDTO entity : entities) {
+                Entity e = convertToEntity(entity);
+                writeJavaFile(generateEntity(e));
+                writeJavaFile(generateRepository(e));
+                writeJavaFile(generateController(e));
+            }
+            return ResponseEntity.ok(new EntityResponseBody("success", "Files generated successfully to path " + OUTPUT_PATH, null));
+        } catch (IOException e) {
+            return ResponseEntity.status(500).body(new EntityResponseBody("error", "Error occurred while generating files: \n" + e.toString(), null));
+        }
+    }
 
     @PostMapping("/entities")
-    public ResponseEntity<?> generateEntities(@RequestBody EntityDTO[] entities) {
-    	String response = "";
-        for (EntityDTO entity: entities) {
-            response += generateEntity(convertToEntity(entity)).toString();
+    public ResponseEntity<EntityResponseBody> generateEntities(@RequestBody EntityDTO[] entities) {
+        StringBuilder response = new StringBuilder();
+        for (EntityDTO entity : entities) {
+            response.append(generateEntity(convertToEntity(entity)).toString());
         }
-        return ResponseEntity.ok().body(response);
-    }
-    
-    @PostMapping("/repositories")
-    public ResponseEntity<?> generateRepositories(@RequestBody EntityDTO[] entities) {
-    	String response = "";
-        for (EntityDTO entity: entities) {
-            response += generateRepository(convertToEntity(entity)).toString();
-        }
-        return ResponseEntity.ok().body(response);
-    }
-    
-    @PostMapping("/controllers")
-    public ResponseEntity<?> generateControllers(@RequestBody EntityDTO[] entities) {
-    	String response = "";
-        for (EntityDTO entity: entities) {
-            response += generateController(convertToEntity(entity)).toString();
-        }
-        return ResponseEntity.ok().body(response);
+        return ResponseEntity.ok(new EntityResponseBody("success", "Entities generated successfully.", response.toString()));
     }
 
+    @PostMapping("/repositories")
+    public ResponseEntity<EntityResponseBody> generateRepositories(@RequestBody EntityDTO[] entities) {
+        StringBuilder response = new StringBuilder();
+        for (EntityDTO entity : entities) {
+            response.append(generateRepository(convertToEntity(entity)).toString());
+        }
+        return ResponseEntity.ok(new EntityResponseBody("success", "Repositories generated successfully.", response.toString()));
+    }
+
+    @PostMapping("/controllers")
+    public ResponseEntity<EntityResponseBody> generateControllers(@RequestBody EntityDTO[] entities) {
+        StringBuilder response = new StringBuilder();
+        for (EntityDTO entity : entities) {
+            response.append(generateController(convertToEntity(entity)).toString());
+        }
+        return ResponseEntity.ok(new EntityResponseBody("success", "Controllers generated successfully.", response.toString()));
+    }
+    
     private static JavaFile generateEntity(Entity entity) {
     	String entityLowercase = entity.getName().toLowerCase();
     	
