@@ -10,14 +10,21 @@
   
     <div class="col-6 my-auto">
 
-      <div *ngIf="response" class="alert alert-danger" role="alert">
-        {{ response }}
+      <div *ngIf="response && response.error" class="alert alert-danger" role="alert">
+        {{ response.error.error }}
+      </div>      
+
+      <div *ngIf="response && response.status == 'success'" class="alert alert-success" role="alert">
+        {{ response.message }}
       </div>      
 
       <form class="px-2 pt-3" #entityForm="ngForm">
         <label class="mb-3">Entity Name:</label>
         <div class="mb-3">
           <input class="form-control" id="entityName" type="text" [(ngModel)]="entity.name" name="entityName" placeholder="Entity" required>  
+
+          <!-- TODO add datalist with java types -->
+
         </div>
 
         <label>Attributes:</label>
@@ -37,7 +44,7 @@
           <div class="input-group">
             <input class="form-control" type="text" [(ngModel)]="newAttribute.name" name="newAttributeName" placeholder="Name" required pattern="[a-zA-Z][a-zA-Z0-9]*">
             <input class="form-control" type="text" [(ngModel)]="newAttribute.type" name="newAttributeType" placeholder="Type" required>
-            <button class="btn btn-success" type="button" (click)="addAttribute()">Add Attribute</button>
+            <button class="btn btn-success" type="button" (click)="addAttribute()">Add</button>
           </div>
         </div>
         <div class="text-center btn-group my-3">
@@ -52,6 +59,7 @@
               <li><button class="dropdown-item" type="button" (click)="sendRequest('repositories')">Repositories only</button></li>
               <li><button class="dropdown-item" type="button" (click)="sendRequest('controllers')">Controllers only</button></li>
             </ul>
+            <button *ngIf="model.length >= 16" class="btn btn-outline-secondary" type="button" (click)="resetModel()">Reset</button>
         </div>
       </form>    
     </div>

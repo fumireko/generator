@@ -23,7 +23,7 @@ export class AppComponent {
     folding: true,
     minimap: { enabled: false },
     readOnly: false,
-    language: 'yaml',
+    language: 'java',
     theme: 'vs-dark'
   };
 
@@ -44,7 +44,7 @@ export class AppComponent {
 
   generateEntity() {
     if (!this.validateEntity()) {
-      alert('Please ensure entity name and attributes are correctly filled out.');
+      alert('Please ensure the attributes are correctly filled out.');
       return;
     }
 
@@ -77,8 +77,14 @@ export class AppComponent {
     this.http.post('http://localhost:8080/' + location, this.model, { headers: headers })
       .subscribe(response => {
         this.response = response;
+
+        if(this.response){
+          this.resetModel();
+          this.model = this.response.body;
+          this.options.language = 'java';  
+        }
       }, error => {
-        this.response = 'Error: ' + error.message;
+        this.response = error;
       });
   }
 
