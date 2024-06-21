@@ -74,7 +74,7 @@ export class AppComponent {
     const headers = new HttpHeaders({
       'Content-Type': 'application/json'
     });
-    this.http.post('http://localhost:8080/' + location, this.model, { headers: headers })
+    this.http.post('http://localhost:8808/' + location, this.model, { headers: headers })
       .subscribe(response => {
         this.response = response;
 

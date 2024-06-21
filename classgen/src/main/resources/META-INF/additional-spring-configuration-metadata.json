@@ -1,0 +1,14 @@
+{
+	"properties": [
+		{
+			"name": "ca.fubi.classgenerator.output.path",
+			"type": "java.lang.String",
+			"description": "Project output path of generated classes."
+		},
+		{
+			"name": "ca.fubi.classgenerator.output.package",
+			"type": "java.lang.String",
+			"description": "The package to output generated classes"
+		}
+	]
+}
